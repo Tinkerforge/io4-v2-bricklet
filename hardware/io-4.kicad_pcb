@@ -1,9 +1,9 @@
-(kicad_pcb (version 4) (host pcbnew 4.0.2+dfsg1-stable)
+(kicad_pcb (version 4) (host pcbnew 4.0.7-e2-6376~58~ubuntu17.04.1)
 
   (general
     (links 47)
     (no_connects 0)
-    (area 122.844999 66.044999 282.3718 165.09238)
+    (area 14.15415 66.044999 159.555001 196.440793)
     (thickness 1.6002)
     (drawings 24)
     (tracks 154)
@@ -6732,7 +6732,7 @@
       (xy 1.301301 2.715081) (xy 1.302426 2.714986)) (layer B.SilkS) (width 0.01))
   )
 
-  (gr_text status (at 157.49 75.1 90) (layer F.SilkS)
+  (gr_text Status (at 157.49 75.1 90) (layer F.SilkS)
     (effects (font (size 0.8 0.8) (thickness 0.15)))
   )
   (gr_line (start 123.7 99.4) (end 123.7 69.4) (angle 90) (layer Edge.Cuts) (width 0.381))
