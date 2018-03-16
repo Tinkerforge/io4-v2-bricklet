@@ -6758,7 +6758,7 @@
   (gr_text 0 (at 148.62312 100.80244) (layer F.SilkS)
     (effects (font (size 1.00076 1.00076) (thickness 0.14986)))
   )
-  (gr_text "Output only" (at 135.12302 84.3026 270) (layer F.SilkS)
+  (gr_text "Output Only" (at 135.12302 84.3026 270) (layer F.SilkS)
     (effects (font (size 0.8001 0.8001) (thickness 0.14986)))
   )
   (gr_text GND (at 143.6244 67.90182 180) (layer F.SilkS)
