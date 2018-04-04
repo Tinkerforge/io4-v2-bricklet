@@ -104,9 +104,14 @@ BootloaderHandleMessageResponse set_selected_value(const SetSelectedValue *data)
 
 	io4.channels[data->channel].value = data->value;
 
-	(io4.channels[data->channel].value) ? \
-	XMC_GPIO_SetOutputHigh(io4.channels[data->channel].port_base, io4.channels[data->channel].pin) : \
-	XMC_GPIO_SetOutputLow(io4.channels[data->channel].port_base, io4.channels[data->channel].pin);
+	if(io4.channels[data->channel].value) {
+		XMC_GPIO_SetOutputHigh(io4.channels[data->channel].port_base,
+		                       io4.channels[data->channel].pin);
+	}
+	else {
+		XMC_GPIO_SetOutputLow(io4.channels[data->channel].port_base,
+		                      io4.channels[data->channel].pin);
+	}
 
 	return HANDLE_MESSAGE_RESPONSE_EMPTY;
 }
@@ -136,9 +141,16 @@ BootloaderHandleMessageResponse set_configuration(const SetConfiguration *data) 
 		io4.channels[data->channel].init_value = data->value;
 		io4.channels[data->channel].direction = IO4_V2_DIRECTION_IN;
 
-		(io4.channels[data->channel].init_value) ? \
-		XMC_GPIO_Init(io4.channels[data->channel].port_base, io4.channels[data->channel].pin, &ch_pin_in_pull_up_config) : \
-		XMC_GPIO_Init(io4.channels[data->channel].port_base, io4.channels[data->channel].pin, &ch_pin_in_no_pull_up_config);
+		if(io4.channels[data->channel].init_value) {
+			XMC_GPIO_Init(io4.channels[data->channel].port_base,
+			              io4.channels[data->channel].pin,
+			              &ch_pin_in_pull_up_config);
+		}
+		else {
+			XMC_GPIO_Init(io4.channels[data->channel].port_base,
+			              io4.channels[data->channel].pin,
+			              &ch_pin_in_no_pull_up_config);
+		}
 
 		io4.channels[data->channel].value = \
 			(bool)XMC_GPIO_GetInput(io4.channels[data->channel].port_base,
@@ -158,9 +170,14 @@ BootloaderHandleMessageResponse set_configuration(const SetConfiguration *data) 
 		              io4.channels[data->channel].pin,
 		              &ch_pin_out_config);
 
-		(io4.channels[data->channel].init_value) ? \
-		XMC_GPIO_SetOutputHigh(io4.channels[data->channel].port_base, io4.channels[data->channel].pin) : \
-		XMC_GPIO_SetOutputLow(io4.channels[data->channel].port_base, io4.channels[data->channel].pin);
+		if(io4.channels[data->channel].init_value) {
+			XMC_GPIO_SetOutputHigh(io4.channels[data->channel].port_base,
+			                       io4.channels[data->channel].pin);
+		}
+		else {
+			XMC_GPIO_SetOutputLow(io4.channels[data->channel].port_base,
+			                      io4.channels[data->channel].pin);
+		}
 
 		// Reset monoflop
 		io4.channels[data->channel].monoflop.time = 0;
@@ -282,9 +299,14 @@ BootloaderHandleMessageResponse set_monoflop(const SetMonoflop *data) {
 	io4.channels[data->channel].monoflop.time = data->time;
   io4.channels[data->channel].monoflop.time_remaining = data->time;
 
-	(io4.channels[data->channel].value) ? \
-	XMC_GPIO_SetOutputHigh(io4.channels[data->channel].port_base, io4.channels[data->channel].pin) : \
-	XMC_GPIO_SetOutputLow(io4.channels[data->channel].port_base, io4.channels[data->channel].pin);
+	if(io4.channels[data->channel].value) {
+		XMC_GPIO_SetOutputHigh(io4.channels[data->channel].port_base,
+		                       io4.channels[data->channel].pin);
+	}
+	else {
+		XMC_GPIO_SetOutputLow(io4.channels[data->channel].port_base,
+		                      io4.channels[data->channel].pin);
+	}
 
 	io4.channels[data->channel].monoflop.time_start = system_timer_get_ms();
 
@@ -393,15 +415,15 @@ bool handle_input_value_callback(void) {
 	static InputValue_Callback cb;
 
 	if(!is_buffered) {
-		tfp_make_default_header(&cb.header,
-		                        bootloader_get_uid(),
-		                        sizeof(InputValue_Callback),
-		                        FID_CALLBACK_INPUT_VALUE);
-
 		if(ringbuffer_is_empty(&io4.input_value_cb_rb)) {
 			// Nothing to send
 			return false;
 		}
+
+		tfp_make_default_header(&cb.header,
+		                        bootloader_get_uid(),
+		                        sizeof(InputValue_Callback),
+		                        FID_CALLBACK_INPUT_VALUE);
 
 		ringbuffer_get(&io4.input_value_cb_rb, &cb.channel);
 		ringbuffer_get(&io4.input_value_cb_rb, (uint8_t *)&cb.changed);
@@ -428,15 +450,15 @@ bool handle_all_input_value_callback(void) {
 	static AllInputValue_Callback cb;
 
 	if(!is_buffered) {
-		tfp_make_default_header(&cb.header,
-		                        bootloader_get_uid(),
-		                        sizeof(AllInputValue_Callback),
-		                        FID_CALLBACK_ALL_INPUT_VALUE);
-
 		if(ringbuffer_is_empty(&io4.all_input_value_cb.cb_rb)) {
 			// Nothing to send
 			return false;
 		}
+
+		tfp_make_default_header(&cb.header,
+		                        bootloader_get_uid(),
+		                        sizeof(AllInputValue_Callback),
+		                        FID_CALLBACK_ALL_INPUT_VALUE);
 
 		ringbuffer_get(&io4.all_input_value_cb.cb_rb, &cb.changed);
 		ringbuffer_get(&io4.all_input_value_cb.cb_rb, &cb.value);
@@ -463,15 +485,15 @@ bool handle_monoflop_done_callback(void) {
 	static MonoflopDone_Callback cb;
 
 	if(!is_buffered) {
-		tfp_make_default_header(&cb.header,
-		                        bootloader_get_uid(),
-		                        sizeof(MonoflopDone_Callback),
-		                        FID_CALLBACK_MONOFLOP_DONE);
-
 		if(ringbuffer_is_empty(&io4.monoflop_cb_rb)) {
 			// Nothing to send
 			return false;
 		}
+
+		tfp_make_default_header(&cb.header,
+		                        bootloader_get_uid(),
+		                        sizeof(MonoflopDone_Callback),
+		                        FID_CALLBACK_MONOFLOP_DONE);
 
 		ringbuffer_get(&io4.monoflop_cb_rb, &cb.channel);
 		ringbuffer_get(&io4.monoflop_cb_rb, (uint8_t *)&cb.value);
