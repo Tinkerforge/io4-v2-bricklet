@@ -66,7 +66,6 @@ typedef struct {
 } IO_CH_EDGE_COUNT_t;
 
 typedef struct {
-  bool value;
   uint32_t time;
   uint32_t time_start;
   uint32_t time_remaining;

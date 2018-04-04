@@ -140,14 +140,18 @@ BootloaderHandleMessageResponse set_configuration(const SetConfiguration *data) 
 		XMC_GPIO_Init(io4.channels[data->channel].port_base, io4.channels[data->channel].pin, &ch_pin_in_pull_up_config) : \
 		XMC_GPIO_Init(io4.channels[data->channel].port_base, io4.channels[data->channel].pin, &ch_pin_in_no_pull_up_config);
 
+		io4.channels[data->channel].value = \
+			(bool)XMC_GPIO_GetInput(io4.channels[data->channel].port_base,
+			                        io4.channels[data->channel].pin);
+
 		// Reset monoflop
 		io4.channels[data->channel].monoflop.time = 0;
-	  io4.channels[data->channel].monoflop.value = false;
-	  io4.channels[data->channel].monoflop.time_remaining = 0;
+		io4.channels[data->channel].monoflop.time_start = 0;
+		io4.channels[data->channel].monoflop.time_remaining = 0;
 	}
 	else if(data->direction == 'o') {
 		io4.channels[data->channel].init_value = data->value;
-    io4.channels[data->channel].direction = IO4_V2_DIRECTION_OUT;
+		io4.channels[data->channel].direction = IO4_V2_DIRECTION_OUT;
 		io4.channels[data->channel].value = io4.channels[data->channel].init_value;
 
 		XMC_GPIO_Init(io4.channels[data->channel].port_base,
@@ -160,7 +164,7 @@ BootloaderHandleMessageResponse set_configuration(const SetConfiguration *data) 
 
 		// Reset monoflop
 		io4.channels[data->channel].monoflop.time = 0;
-		io4.channels[data->channel].monoflop.value = false;
+		io4.channels[data->channel].monoflop.time_start = 0;
 		io4.channels[data->channel].monoflop.time_remaining = 0;
 	}
 	else {
@@ -202,7 +206,8 @@ BootloaderHandleMessageResponse set_input_value_callback_configuration(const Set
 
 	if(io4.channels[data->channel].input_value_cb.period > 0) {
 		io4.channels[data->channel].input_value_cb.last_value = \
-			XMC_GPIO_GetInput(io4.channels[data->channel].port_base, io4.channels[data->channel].pin);
+			(bool)XMC_GPIO_GetInput(io4.channels[data->channel].port_base,
+			                        io4.channels[data->channel].pin);
 		io4.channels[data->channel].input_value_cb.period_start = system_timer_get_ms();
 	}
 
@@ -242,7 +247,7 @@ BootloaderHandleMessageResponse set_all_input_value_callback_configuration(const
 		// Store current channel states
 		for(uint8_t i = 0; i < NUMBER_OF_CHANNELS; i++) {
 			io4.all_input_value_cb.last_values[i] = \
-				XMC_GPIO_GetInput(io4.channels[i].port_base, io4.channels[i].pin);
+				(bool)XMC_GPIO_GetInput(io4.channels[i].port_base, io4.channels[i].pin);
 		}
 
 		io4.all_input_value_cb.period_start = system_timer_get_ms();
@@ -273,13 +278,15 @@ BootloaderHandleMessageResponse set_monoflop(const SetMonoflop *data) {
 		return HANDLE_MESSAGE_RESPONSE_INVALID_PARAMETER;
 	}
 
+	io4.channels[data->channel].value = data->value;
 	io4.channels[data->channel].monoflop.time = data->time;
-  io4.channels[data->channel].monoflop.value = data->value;
   io4.channels[data->channel].monoflop.time_remaining = data->time;
 
-	(io4.channels[data->channel].monoflop.value) ? \
+	(io4.channels[data->channel].value) ? \
 	XMC_GPIO_SetOutputHigh(io4.channels[data->channel].port_base, io4.channels[data->channel].pin) : \
 	XMC_GPIO_SetOutputLow(io4.channels[data->channel].port_base, io4.channels[data->channel].pin);
+
+	io4.channels[data->channel].monoflop.time_start = system_timer_get_ms();
 
 	return HANDLE_MESSAGE_RESPONSE_EMPTY;
 }
@@ -299,7 +306,7 @@ BootloaderHandleMessageResponse get_monoflop(const GetMonoflop *data,
 	}
 
 	response->time = io4.channels[data->channel].monoflop.time;
-	response->value = io4.channels[data->channel].monoflop.value;
+	response->value = io4.channels[data->channel].value;
 	response->time_remaining = io4.channels[data->channel].monoflop.time_remaining;
 
 	return HANDLE_MESSAGE_RESPONSE_NEW_MESSAGE;
@@ -354,7 +361,8 @@ BootloaderHandleMessageResponse set_edge_count_configuration(const SetEdgeCountC
 	io4.channels[data->channel].edge_count.debounce = data->debounce;
 	io4.channels[data->channel].edge_count.edge_type = data->edge_type;
 	io4.channels[data->channel].edge_count.last_value = \
-		XMC_GPIO_GetInput(io4.channels[data->channel].port_base, io4.channels[data->channel].pin);
+		(bool)XMC_GPIO_GetInput(io4.channels[data->channel].port_base,
+		                        io4.channels[data->channel].pin);
 	io4.channels[data->channel].edge_count.debounce_start = system_timer_get_ms();
 
 	return HANDLE_MESSAGE_RESPONSE_EMPTY;
