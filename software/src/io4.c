@@ -62,9 +62,7 @@ void io4_init(void) {
 		io4.channels[i].monoflop.time_remaining = 0;
 
 		// Channel edge count config
-		io4.channels[i].edge_count.debounce = 0;
-		io4.channels[i].edge_count.debounce_start = 0;
-		io4.channels[i].edge_count.last_value = false;
+		io4.channels[i].edge_count.debounce = 100;
 		io4.channels[i].edge_count.cnt_edge_rising = 0;
 		io4.channels[i].edge_count.cnt_edge_falling = 0;
 		io4.channels[i].edge_count.edge_type = IO4_V2_EDGE_TYPE_RISING;
@@ -86,6 +84,10 @@ void io4_init(void) {
 		else {
 			io4.channels[i].value = false;
 		}
+
+		// Channel edge count config
+		io4.channels[i].edge_count.last_value = io4.channels[i].value;
+		io4.channels[i].edge_count.debounce_start = system_timer_get_ms();
 	}
 
 	// All input value callback

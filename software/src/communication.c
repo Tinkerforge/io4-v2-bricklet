@@ -133,11 +133,14 @@ BootloaderHandleMessageResponse get_selected_value(const GetSelectedValue *data,
 BootloaderHandleMessageResponse set_configuration(const SetConfiguration *data) {
 	logd("[+] IO4-V2: set_configuration()\n\r");
 
+	char channel_previous_direction;
+
 	if(data->channel > NUMBER_OF_CHANNELS - 1) {
 		return HANDLE_MESSAGE_RESPONSE_INVALID_PARAMETER;
 	}
 
-	if(data->direction == 'i') {
+	if(data->direction == IO4_V2_DIRECTION_IN) {
+		channel_previous_direction = io4.channels[data->channel].direction;
 		io4.channels[data->channel].init_value = data->value;
 		io4.channels[data->channel].direction = IO4_V2_DIRECTION_IN;
 
@@ -156,12 +159,21 @@ BootloaderHandleMessageResponse set_configuration(const SetConfiguration *data) 
 			(bool)XMC_GPIO_GetInput(io4.channels[data->channel].port_base,
 			                        io4.channels[data->channel].pin);
 
+		if(channel_previous_direction == IO4_V2_DIRECTION_OUT) {
+			// Reset and start edge counter
+			io4.channels[i].edge_count.debounce = 100;
+			io4.channels[data->channel].edge_count.cnt_edge_rising = 0;
+			io4.channels[data->channel].edge_count.cnt_edge_falling = 0;
+			io4.channels[data->channel].edge_count.last_value = io4.channels[i].value;
+			io4.channels[data->channel].edge_count.debounce_start = system_timer_get_ms();
+		}
+
 		// Reset monoflop
 		io4.channels[data->channel].monoflop.time = 0;
 		io4.channels[data->channel].monoflop.time_start = 0;
 		io4.channels[data->channel].monoflop.time_remaining = 0;
 	}
-	else if(data->direction == 'o') {
+	else if(data->direction == IO4_V2_DIRECTION_OUT) {
 		io4.channels[data->channel].init_value = data->value;
 		io4.channels[data->channel].direction = IO4_V2_DIRECTION_OUT;
 		io4.channels[data->channel].value = io4.channels[data->channel].init_value;
@@ -178,6 +190,12 @@ BootloaderHandleMessageResponse set_configuration(const SetConfiguration *data) 
 			XMC_GPIO_SetOutputLow(io4.channels[data->channel].port_base,
 			                      io4.channels[data->channel].pin);
 		}
+
+		// Reset and stop edge counter
+		io4.channels[i].edge_count.debounce = 0;
+		io4.channels[data->channel].edge_count.debounce_start = 0;
+		io4.channels[data->channel].edge_count.cnt_edge_rising = 0;
+		io4.channels[data->channel].edge_count.cnt_edge_falling = 0;
 
 		// Reset monoflop
 		io4.channels[data->channel].monoflop.time = 0;
