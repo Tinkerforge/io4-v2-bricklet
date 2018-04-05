@@ -161,10 +161,10 @@ BootloaderHandleMessageResponse set_configuration(const SetConfiguration *data) 
 
 		if(channel_previous_direction == IO4_V2_DIRECTION_OUT) {
 			// Reset and start edge counter
-			io4.channels[i].edge_count.debounce = 100;
+			io4.channels[data->channel].edge_count.debounce = 100;
 			io4.channels[data->channel].edge_count.cnt_edge_rising = 0;
 			io4.channels[data->channel].edge_count.cnt_edge_falling = 0;
-			io4.channels[data->channel].edge_count.last_value = io4.channels[i].value;
+			io4.channels[data->channel].edge_count.last_value = io4.channels[data->channel].value;
 			io4.channels[data->channel].edge_count.debounce_start = system_timer_get_ms();
 		}
 
@@ -192,7 +192,7 @@ BootloaderHandleMessageResponse set_configuration(const SetConfiguration *data) 
 		}
 
 		// Reset and stop edge counter
-		io4.channels[i].edge_count.debounce = 0;
+		io4.channels[data->channel].edge_count.debounce = 0;
 		io4.channels[data->channel].edge_count.debounce_start = 0;
 		io4.channels[data->channel].edge_count.cnt_edge_rising = 0;
 		io4.channels[data->channel].edge_count.cnt_edge_falling = 0;
