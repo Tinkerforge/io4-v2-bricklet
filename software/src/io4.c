@@ -239,7 +239,7 @@ void io4_tick(void) {
 				}
 				else {
 					io4.channels[i].monoflop.time_remaining = \
-						system_timer_get_ms() - io4.channels[i].monoflop.time_start;
+						io4.channels[i].monoflop.time - (system_timer_get_ms() - io4.channels[i].monoflop.time_start);
 				}
 			}
 		}
