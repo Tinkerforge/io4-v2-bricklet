@@ -72,6 +72,11 @@ typedef struct {
 } IO_CH_MONOFLOP_t;
 
 typedef struct {
+  uint32_t frequency;
+  uint16_t duty_cycle;
+} IO_CH_PWM_t;
+
+typedef struct {
   // Generic channel config
   bool value;
   uint8_t pin;
@@ -85,6 +90,8 @@ typedef struct {
   IO_CH_EDGE_COUNT_t edge_count;
   // Channel input value callback config
   IO_CH_INPUT_VALUE_CB_t input_value_cb;
+  // Channel PWM config
+  IO_CH_PWM_t pwm;
 } IO_CH_t;
 
 typedef struct {
@@ -105,6 +112,8 @@ extern XMC_GPIO_CONFIG_t ch_pin_out_config;
 extern XMC_GPIO_CONFIG_t ch_pin_in_pull_up_config;
 extern XMC_GPIO_CONFIG_t ch_pin_in_no_pull_up_config;
 
+void io4_pwm_stop(const uint8_t channel);
+void io4_pwm_update(const uint8_t channel, const uint32_t frequency, const uint16_t duty_cycle);
 void io4_init(void);
 void io4_tick(void);
 

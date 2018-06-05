@@ -24,6 +24,7 @@
 #include "bricklib2/utility/communication_callback.h"
 #include "bricklib2/protocols/tfp/tfp.h"
 #include "bricklib2/logging/logging.h"
+#include "bricklib2/utility/util_definitions.h"
 
 #include "io4.h"
 
@@ -43,6 +44,8 @@ BootloaderHandleMessageResponse handle_message(const void *message, void *respon
 		case FID_GET_EDGE_COUNT: return get_edge_count(message, response);
 		case FID_SET_EDGE_COUNT_CONFIGURATION: return set_edge_count_configuration(message);
 		case FID_GET_EDGE_COUNT_CONFIGURATION: return get_edge_count_configuration(message, response);
+		case FID_SET_PWM_CONFIGURATION: return set_pwm_configuration(message);
+		case FID_GET_PWM_CONFIGURATION: return get_pwm_configuration(message, response);
 		default: return HANDLE_MESSAGE_RESPONSE_NOT_SUPPORTED;
 	}
 }
@@ -101,6 +104,14 @@ BootloaderHandleMessageResponse set_selected_value(const SetSelectedValue *data)
 		return HANDLE_MESSAGE_RESPONSE_EMPTY;
 	}
 
+	// Reset monoflop
+	io4.channels[data->channel].monoflop.time = 0;
+	io4.channels[data->channel].monoflop.time_start = 0;
+	io4.channels[data->channel].monoflop.time_remaining = 0;
+
+	// Reset PWM
+	io4_pwm_stop(data->channel);
+
 	io4.channels[data->channel].value = data->value;
 
 	if(io4.channels[data->channel].value) {
@@ -157,6 +168,9 @@ BootloaderHandleMessageResponse set_configuration(const SetConfiguration *data) 
 		io4.channels[data->channel].monoflop.time = 0;
 		io4.channels[data->channel].monoflop.time_start = 0;
 		io4.channels[data->channel].monoflop.time_remaining = 0;
+
+		// Reset PWM
+		io4_pwm_stop(data->channel);
 	}
 	else if(data->direction == IO4_V2_DIRECTION_OUT) {
 		io4.channels[data->channel].init_value = data->value;
@@ -186,6 +200,9 @@ BootloaderHandleMessageResponse set_configuration(const SetConfiguration *data) 
 		io4.channels[data->channel].monoflop.time = 0;
 		io4.channels[data->channel].monoflop.time_start = 0;
 		io4.channels[data->channel].monoflop.time_remaining = 0;
+
+		// Reset PWM
+		io4_pwm_stop(data->channel);
 	}
 	else {
 		return HANDLE_MESSAGE_RESPONSE_INVALID_PARAMETER;
@@ -298,9 +315,12 @@ BootloaderHandleMessageResponse set_monoflop(const SetMonoflop *data) {
 		return HANDLE_MESSAGE_RESPONSE_INVALID_PARAMETER;
 	}
 
+	// Reset PWM
+	io4_pwm_stop(data->channel);
+
 	io4.channels[data->channel].value = data->value;
 	io4.channels[data->channel].monoflop.time = data->time;
-  io4.channels[data->channel].monoflop.time_remaining = data->time;
+	io4.channels[data->channel].monoflop.time_remaining = data->time;
 
 	if(io4.channels[data->channel].value) {
 		XMC_GPIO_SetOutputHigh(io4.channels[data->channel].port_base,
@@ -409,6 +429,37 @@ BootloaderHandleMessageResponse get_edge_count_configuration(const GetEdgeCountC
 
 	response->debounce = io4.channels[data->channel].edge_count.debounce;
 	response->edge_type = io4.channels[data->channel].edge_count.edge_type;
+
+	return HANDLE_MESSAGE_RESPONSE_NEW_MESSAGE;
+}
+
+BootloaderHandleMessageResponse set_pwm_configuration(const SetPWMConfiguration *data) {
+	if(data->channel >= NUMBER_OF_CHANNELS) {
+		return HANDLE_MESSAGE_RESPONSE_INVALID_PARAMETER;
+	}
+
+	if(io4.channels[data->channel].direction != IO4_V2_DIRECTION_OUT) {
+		return HANDLE_MESSAGE_RESPONSE_INVALID_PARAMETER;
+	}
+
+	// Reset monoflop
+	io4.channels[data->channel].monoflop.time = 0;
+	io4.channels[data->channel].monoflop.time_start = 0;
+	io4.channels[data->channel].monoflop.time_remaining = 0;
+
+	io4_pwm_update(data->channel, data->frequency, data->duty_cycle);
+
+	return HANDLE_MESSAGE_RESPONSE_EMPTY;
+}
+
+BootloaderHandleMessageResponse get_pwm_configuration(const GetPWMConfiguration *data, GetPWMConfiguration_Response *response) {
+	if(data->channel >= NUMBER_OF_CHANNELS) {
+		return HANDLE_MESSAGE_RESPONSE_INVALID_PARAMETER;
+	}
+
+	response->header.length = sizeof(GetPWMConfiguration_Response);
+	response->duty_cycle    = io4.channels[data->channel].pwm.duty_cycle;
+	response->frequency     = io4.channels[data->channel].pwm.frequency;
 
 	return HANDLE_MESSAGE_RESPONSE_NEW_MESSAGE;
 }

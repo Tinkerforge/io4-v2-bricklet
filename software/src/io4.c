@@ -24,15 +24,116 @@
 #include <stdint.h>
 #include <stdbool.h>
 
+#include "bricklib2/utility/util_definitions.h"
 #include "bricklib2/logging/logging.h"
 #include "bricklib2/hal/system_timer/system_timer.h"
 
 #include "communication.h"
 
+#include "xmc_ccu4.h"
+
 IO4 io4;
 XMC_GPIO_CONFIG_t ch_pin_out_config;
 XMC_GPIO_CONFIG_t ch_pin_in_pull_up_config;
 XMC_GPIO_CONFIG_t ch_pin_in_no_pull_up_config;
+
+XMC_CCU4_SLICE_t *const io4_slice[NUMBER_OF_CHANNELS] = {
+	CCU40_CC40,
+	CCU40_CC41,
+	CCU40_CC42,
+	CCU40_CC43,
+};
+
+void io4_pwm_stop(const uint8_t channel) {
+	if(io4.channels[channel].pwm.frequency != 0) {
+		io4.channels[channel].pwm.duty_cycle = 0;
+		io4.channels[channel].pwm.frequency  = 0;
+		XMC_CCU4_SLICE_StopTimer(io4_slice[channel]);
+
+		const XMC_GPIO_CONFIG_t pwm_stop_config	= {
+			.mode                = XMC_GPIO_MODE_OUTPUT_PUSH_PULL,
+			.input_hysteresis    = XMC_GPIO_INPUT_HYSTERESIS_STANDARD,
+			.output_level        = XMC_GPIO_OUTPUT_LEVEL_LOW,
+		};
+
+		XMC_GPIO_Init(io4.channels[channel].port_base, io4.channels[channel].pin, &pwm_stop_config);
+	}
+}
+
+void io4_pwm_init(const uint8_t channel) {
+	const XMC_CCU4_SLICE_COMPARE_CONFIG_t compare_config = {
+		.timer_mode          = XMC_CCU4_SLICE_TIMER_COUNT_MODE_EA,
+		.monoshot            = false,
+		.shadow_xfer_clear   = 0,
+		.dither_timer_period = 0,
+		.dither_duty_cycle   = 0,
+		.prescaler_mode      = XMC_CCU4_SLICE_PRESCALER_MODE_NORMAL,
+		.mcm_enable          = 0,
+		.prescaler_initval   = 0,
+		.float_limit         = 0,
+		.dither_limit        = 0,
+		.passive_level       = XMC_CCU4_SLICE_OUTPUT_PASSIVE_LEVEL_LOW,
+		.timer_concatenation = 0
+	};
+
+	const XMC_GPIO_CONFIG_t pwm_config	= {
+		.mode                = XMC_GPIO_MODE_OUTPUT_PUSH_PULL_ALT2,
+		.input_hysteresis    = XMC_GPIO_INPUT_HYSTERESIS_STANDARD,
+		.output_level        = XMC_GPIO_OUTPUT_LEVEL_LOW,
+	};
+
+	XMC_CCU4_Init(CCU40, XMC_CCU4_SLICE_MCMS_ACTION_TRANSFER_PR_CR);
+	XMC_CCU4_StartPrescaler(CCU40);
+	XMC_CCU4_SLICE_CompareInit(io4_slice[channel], &compare_config);
+
+	// Set the period and compare register values
+	XMC_CCU4_SLICE_SetTimerPeriodMatch(io4_slice[channel], 32000);
+	XMC_CCU4_SLICE_SetTimerCompareMatch(io4_slice[channel], 0);
+
+	XMC_CCU4_EnableShadowTransfer(CCU40, (XMC_CCU4_SHADOW_TRANSFER_SLICE_0 << (channel*4)) |
+											(XMC_CCU4_SHADOW_TRANSFER_PRESCALER_SLICE_0 << (channel*4)));
+
+	XMC_GPIO_Init(io4.channels[channel].port_base, io4.channels[channel].pin, &pwm_config);
+
+	XMC_CCU4_EnableClock(CCU40, channel);
+}
+
+void io4_pwm_update(const uint8_t channel, const uint32_t frequency, const uint16_t duty_cycle) {
+	if(frequency == 0) {
+		io4_pwm_stop(channel);
+		return;
+	}
+
+	const bool new_start = io4.channels[channel].pwm.frequency == 0;
+
+	if(new_start) {
+		io4_pwm_init(channel);
+	}
+
+	io4.channels[channel].pwm.duty_cycle = MIN(10000, duty_cycle);
+	io4.channels[channel].pwm.frequency  = MIN(320000000, frequency);
+
+	uint32_t prescaler = 0;
+	uint32_t divisor = 1;
+	uint32_t period_value = (640000000/io4.channels[channel].pwm.frequency) - 1;
+	while(period_value > 0xFFFF) {
+		prescaler++;
+		divisor *= 2;
+		period_value = (640000000/(io4.channels[channel].pwm.frequency*divisor)) - 1;
+	}
+
+	uint32_t compare_value = (period_value*(10000-duty_cycle) + 10000/2)/10000;
+
+	XMC_CCU4_SLICE_SetPrescaler(io4_slice[channel], prescaler);
+	XMC_CCU4_SLICE_SetTimerPeriodMatch(io4_slice[channel], period_value);
+	XMC_CCU4_SLICE_SetTimerCompareMatch(io4_slice[channel], compare_value);
+	XMC_CCU4_EnableShadowTransfer(CCU40, (XMC_CCU4_SHADOW_TRANSFER_SLICE_0 << (channel*4)) |
+    		                             (XMC_CCU4_SHADOW_TRANSFER_PRESCALER_SLICE_0 << (channel*4)));
+
+	if(new_start) {
+    	XMC_CCU4_SLICE_StartTimer(io4_slice[channel]);
+	}
+}
 
 void io4_init(void) {
 	logd("[+] IO4-V2: io4_init()\n\r");

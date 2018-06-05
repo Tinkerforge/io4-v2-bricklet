@@ -74,10 +74,12 @@ void communication_init(void);
 #define FID_GET_EDGE_COUNT 12
 #define FID_SET_EDGE_COUNT_CONFIGURATION 13
 #define FID_GET_EDGE_COUNT_CONFIGURATION 14
+#define FID_SET_PWM_CONFIGURATION 15
+#define FID_GET_PWM_CONFIGURATION 16
 
-#define FID_CALLBACK_INPUT_VALUE 15
-#define FID_CALLBACK_ALL_INPUT_VALUE 16
-#define FID_CALLBACK_MONOFLOP_DONE 17
+#define FID_CALLBACK_INPUT_VALUE 17
+#define FID_CALLBACK_ALL_INPUT_VALUE 18
+#define FID_CALLBACK_MONOFLOP_DONE 19
 
 typedef struct {
 	TFPMessageHeader header;
@@ -202,6 +204,24 @@ typedef struct {
 typedef struct {
 	TFPMessageHeader header;
 	uint8_t channel;
+	uint32_t frequency;
+	uint16_t duty_cycle;
+} __attribute__((__packed__)) SetPWMConfiguration;
+
+typedef struct {
+	TFPMessageHeader header;
+	uint8_t channel;
+} __attribute__((__packed__)) GetPWMConfiguration;
+
+typedef struct {
+	TFPMessageHeader header;
+	uint32_t frequency;
+	uint16_t duty_cycle;
+} __attribute__((__packed__)) GetPWMConfiguration_Response;
+
+typedef struct {
+	TFPMessageHeader header;
+	uint8_t channel;
 	bool changed;
 	bool value;
 } __attribute__((__packed__)) InputValue_Callback;
@@ -234,6 +254,8 @@ BootloaderHandleMessageResponse get_monoflop(const GetMonoflop *data, GetMonoflo
 BootloaderHandleMessageResponse get_edge_count(const GetEdgeCount *data, GetEdgeCount_Response *response);
 BootloaderHandleMessageResponse set_edge_count_configuration(const SetEdgeCountConfiguration *data);
 BootloaderHandleMessageResponse get_edge_count_configuration(const GetEdgeCountConfiguration *data, GetEdgeCountConfiguration_Response *response);
+BootloaderHandleMessageResponse set_pwm_configuration(const SetPWMConfiguration *data);
+BootloaderHandleMessageResponse get_pwm_configuration(const GetPWMConfiguration *data, GetPWMConfiguration_Response *response);
 
 // Callbacks
 bool handle_input_value_callback(void);
