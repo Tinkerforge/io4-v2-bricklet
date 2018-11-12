@@ -1,0 +1,31 @@
+Needs["NETLink`"]
+LoadNETAssembly["Tinkerforge",NotebookDirectory[]<>"../../.."]
+
+host="localhost"
+port=4223
+uid="XYZ"(*Change XYZ to the UID of your IO-4 Bricklet 2.0*)
+
+(*Create IPConnection and device object*)
+ipcon=NETNew["Tinkerforge.IPConnection"]
+io=NETNew["Tinkerforge.BrickletIO4V2",uid,ipcon]
+ipcon@Connect[host,port]
+
+(*Callback function for input value callback*)
+InputValueCB[sender_,channel_,changed_,value_]:=
+ Module[{},
+  Print["Channel: "<>ToString[channel]];
+  Print["Changed: "<>ToString[changed]];
+  Print["Value: "<>ToString[value]]
+ ]
+
+AddEventHandler[io@InputValueCallback,InputValueCB]
+
+(*Set period for input value (channel 1) callback to 0.5s (500ms)*)
+io@SetInputValueCallbackConfiguration[1,500,False]
+
+Input["Click OK to exit"]
+
+(*Clean up*)
+ipcon@Disconnect[]
+ReleaseNETObject[io]
+ReleaseNETObject[ipcon]
