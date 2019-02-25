@@ -1,5 +1,5 @@
 /* io4-v2-bricklet
- * Copyright (C) 2018 Ishraq Ibne Ashraf <ishraq@tinkerforge.com>
+ * Copyright (C) 2018-2019 Ishraq Ibne Ashraf <ishraq@tinkerforge.com>
  *
  * io4.c: Implementation of IO4 V2 Bricklet
  *
@@ -33,9 +33,12 @@
 #include "xmc_ccu4.h"
 
 IO4 io4;
-XMC_GPIO_CONFIG_t ch_pin_out_config;
-XMC_GPIO_CONFIG_t ch_pin_in_pull_up_config;
-XMC_GPIO_CONFIG_t ch_pin_in_no_pull_up_config;
+
+// GPIO modes
+XMC_GPIO_MODE_t ch_pin_out_mode = XMC_GPIO_MODE_OUTPUT_PUSH_PULL;
+XMC_GPIO_MODE_t ch_pin_pwm_mode = XMC_GPIO_MODE_OUTPUT_PUSH_PULL_ALT2;
+XMC_GPIO_MODE_t ch_pin_in_pull_up_mode = XMC_GPIO_MODE_INPUT_PULL_UP;
+XMC_GPIO_MODE_t ch_pin_in_no_pull_up_mode = XMC_GPIO_MODE_INPUT_TRISTATE;
 
 XMC_CCU4_SLICE_t *const io4_slice[NUMBER_OF_CHANNELS] = {
 	CCU40_CC40,
@@ -44,111 +47,14 @@ XMC_CCU4_SLICE_t *const io4_slice[NUMBER_OF_CHANNELS] = {
 	CCU40_CC43,
 };
 
-void io4_pwm_stop(const uint8_t channel) {
-	if(io4.channels[channel].pwm.frequency != 0) {
-		io4.channels[channel].pwm.duty_cycle = 0;
-		io4.channels[channel].pwm.frequency  = 0;
-		XMC_CCU4_SLICE_StopTimer(io4_slice[channel]);
-
-		const XMC_GPIO_CONFIG_t pwm_stop_config	= {
-			.mode                = XMC_GPIO_MODE_OUTPUT_PUSH_PULL,
-			.input_hysteresis    = XMC_GPIO_INPUT_HYSTERESIS_STANDARD,
-			.output_level        = XMC_GPIO_OUTPUT_LEVEL_LOW,
-		};
-
-		XMC_GPIO_Init(io4.channels[channel].port_base, io4.channels[channel].pin, &pwm_stop_config);
-	}
-}
-
-void io4_pwm_init(const uint8_t channel) {
-	const XMC_CCU4_SLICE_COMPARE_CONFIG_t compare_config = {
-		.timer_mode          = XMC_CCU4_SLICE_TIMER_COUNT_MODE_EA,
-		.monoshot            = false,
-		.shadow_xfer_clear   = 0,
-		.dither_timer_period = 0,
-		.dither_duty_cycle   = 0,
-		.prescaler_mode      = XMC_CCU4_SLICE_PRESCALER_MODE_NORMAL,
-		.mcm_enable          = 0,
-		.prescaler_initval   = 0,
-		.float_limit         = 0,
-		.dither_limit        = 0,
-		.passive_level       = XMC_CCU4_SLICE_OUTPUT_PASSIVE_LEVEL_LOW,
-		.timer_concatenation = 0
-	};
-
-	const XMC_GPIO_CONFIG_t pwm_config	= {
-		.mode                = XMC_GPIO_MODE_OUTPUT_PUSH_PULL_ALT2,
-		.input_hysteresis    = XMC_GPIO_INPUT_HYSTERESIS_STANDARD,
-		.output_level        = XMC_GPIO_OUTPUT_LEVEL_LOW,
-	};
-
-	XMC_CCU4_Init(CCU40, XMC_CCU4_SLICE_MCMS_ACTION_TRANSFER_PR_CR);
-	XMC_CCU4_StartPrescaler(CCU40);
-	XMC_CCU4_SLICE_CompareInit(io4_slice[channel], &compare_config);
-
-	// Set the period and compare register values
-	XMC_CCU4_SLICE_SetTimerPeriodMatch(io4_slice[channel], 32000);
-	XMC_CCU4_SLICE_SetTimerCompareMatch(io4_slice[channel], 0);
-
-	XMC_CCU4_EnableShadowTransfer(CCU40, (XMC_CCU4_SHADOW_TRANSFER_SLICE_0 << (channel*4)) |
-											(XMC_CCU4_SHADOW_TRANSFER_PRESCALER_SLICE_0 << (channel*4)));
-
-	XMC_GPIO_Init(io4.channels[channel].port_base, io4.channels[channel].pin, &pwm_config);
-
-	XMC_CCU4_EnableClock(CCU40, channel);
-}
-
-void io4_pwm_update(const uint8_t channel, const uint32_t frequency, const uint16_t duty_cycle) {
-	if(frequency == 0) {
-		io4_pwm_stop(channel);
-		return;
-	}
-
-	const bool new_start = io4.channels[channel].pwm.frequency == 0;
-
-	if(new_start) {
-		io4_pwm_init(channel);
-	}
-
-	io4.channels[channel].pwm.duty_cycle = MIN(10000, duty_cycle);
-	io4.channels[channel].pwm.frequency  = MIN(320000000, frequency);
-
-	uint32_t prescaler = 0;
-	uint32_t divisor = 1;
-	uint32_t period_value = (640000000/io4.channels[channel].pwm.frequency) - 1;
-	while(period_value > 0xFFFF) {
-		prescaler++;
-		divisor *= 2;
-		period_value = (640000000/(io4.channels[channel].pwm.frequency*divisor)) - 1;
-	}
-
-	uint32_t compare_value = (period_value*(10000-duty_cycle) + 10000/2)/10000;
-
-	XMC_CCU4_SLICE_SetPrescaler(io4_slice[channel], prescaler);
-	XMC_CCU4_SLICE_SetTimerPeriodMatch(io4_slice[channel], period_value);
-	XMC_CCU4_SLICE_SetTimerCompareMatch(io4_slice[channel], compare_value);
-	XMC_CCU4_EnableShadowTransfer(CCU40, (XMC_CCU4_SHADOW_TRANSFER_SLICE_0 << (channel*4)) |
-    		                             (XMC_CCU4_SHADOW_TRANSFER_PRESCALER_SLICE_0 << (channel*4)));
-
-	if(new_start) {
-    	XMC_CCU4_SLICE_StartTimer(io4_slice[channel]);
-	}
-}
-
 void io4_init(void) {
 	logd("[+] IO4-V2: io4_init()\n\r");
 
-	// Channel out config
-	ch_pin_out_config.mode = XMC_GPIO_MODE_OUTPUT_PUSH_PULL;
-	ch_pin_out_config.output_level = XMC_GPIO_OUTPUT_LEVEL_LOW;
+	XMC_GPIO_CONFIG_t ch_pin_in_pull_up_config;
 
 	// Channel in pull-up config
 	ch_pin_in_pull_up_config.mode = XMC_GPIO_MODE_INPUT_PULL_UP;
 	ch_pin_in_pull_up_config.input_hysteresis = XMC_GPIO_INPUT_HYSTERESIS_STANDARD;
-
-	// Channel in no pull-up config
-	ch_pin_in_no_pull_up_config.mode = XMC_GPIO_MODE_INPUT_TRISTATE;
-	ch_pin_in_no_pull_up_config.input_hysteresis = XMC_GPIO_INPUT_HYSTERESIS_STANDARD;
 
 	// Initialise all the channels
 	for(uint8_t i = 0; i < NUMBER_OF_CHANNELS; i++) {
@@ -162,22 +68,20 @@ void io4_init(void) {
 		io4.channels[i].monoflop.time_start = 0;
 		io4.channels[i].monoflop.time_remaining = 0;
 
+		// Channel input value callback config
+		io4.channels[i].input_value_cb.period = 0;
+		io4.channels[i].input_value_cb.period_start = 0;
+		io4.channels[i].input_value_cb.last_value = false;
+		io4.channels[i].input_value_cb.value_has_to_change = false;
+
 		// Channel edge count config
 		io4.channels[i].edge_count.debounce = 100;
 		io4.channels[i].edge_count.cnt_edge_rising = 0;
 		io4.channels[i].edge_count.cnt_edge_falling = 0;
 		io4.channels[i].edge_count.edge_type = IO4_V2_EDGE_TYPE_RISING;
 
-		// Channel input value callback config
-		io4.channels[i].input_value_cb.period = 0;
-		io4.channels[i].input_value_cb.last_value = false;
-		io4.channels[i].input_value_cb.period_start = 0;
-		io4.channels[i].input_value_cb.value_has_to_change = false;
-
 		// Initialised as pull-up input
 		XMC_GPIO_Init(io4.channels[i].port_base, io4.channels[i].pin, &ch_pin_in_pull_up_config);
-
-		io4.channels[i].init_value = true;
 
 		if(XMC_GPIO_GetInput(io4.channels[i].port_base, io4.channels[i].pin) == 1) {
 			io4.channels[i].value = true;
@@ -185,6 +89,8 @@ void io4_init(void) {
 		else {
 			io4.channels[i].value = false;
 		}
+
+		io4.channels[i].init_value = true;
 
 		// Channel edge count config
 		io4.channels[i].edge_count.last_value = io4.channels[i].value;
@@ -197,9 +103,8 @@ void io4_init(void) {
 	io4.all_input_value_cb.value_has_to_change = false;
 
 	// Input value callback ringbuffer init
-	ringbuffer_init(&io4.all_input_value_cb.cb_rb, ALL_INPUT_VALUE_CB_BUFFER_SIZE, &io4.all_input_value_cb.cb_buffer[0]);
-
 	ringbuffer_init(&io4.input_value_cb_rb, INPUT_VALUE_CB_BUFFER_SIZE, &io4.input_value_cb_buffer[0]);
+	ringbuffer_init(&io4.all_input_value_cb.cb_rb, ALL_INPUT_VALUE_CB_BUFFER_SIZE, &io4.all_input_value_cb.cb_buffer[0]);
 
 	// Monopflop callback ringbuffer init
 	ringbuffer_init(&io4.monoflop_cb_rb, MONOFLOP_CB_BUFFER_SIZE, &io4.monoflop_cb_buffer[0]);
@@ -373,4 +278,180 @@ void io4_tick(void) {
 
 		io4.all_input_value_cb.period_start = system_timer_get_ms();
 	}
+}
+
+void io4_pwm_init(const uint8_t channel) {
+	const XMC_CCU4_SLICE_COMPARE_CONFIG_t compare_config = {
+		.timer_mode          = XMC_CCU4_SLICE_TIMER_COUNT_MODE_EA,
+		.monoshot            = false,
+		.shadow_xfer_clear   = 0,
+		.dither_timer_period = 0,
+		.dither_duty_cycle   = 0,
+		.prescaler_mode      = XMC_CCU4_SLICE_PRESCALER_MODE_NORMAL,
+		.mcm_enable          = 0,
+		.prescaler_initval   = 0,
+		.float_limit         = 0,
+		.dither_limit        = 0,
+		.passive_level       = XMC_CCU4_SLICE_OUTPUT_PASSIVE_LEVEL_LOW,
+		.timer_concatenation = 0
+	};
+
+	XMC_CCU4_StartPrescaler(CCU40);
+	XMC_CCU4_Init(CCU40, XMC_CCU4_SLICE_MCMS_ACTION_TRANSFER_PR_CR);
+	XMC_CCU4_SLICE_CompareInit(io4_slice[channel], &compare_config);
+
+	// Set the period and compare register values
+	XMC_CCU4_SLICE_SetTimerCompareMatch(io4_slice[channel], 0);
+	XMC_CCU4_SLICE_SetTimerPeriodMatch(io4_slice[channel], 32000);
+
+	XMC_CCU4_EnableShadowTransfer(CCU40,
+	                              (XMC_CCU4_SHADOW_TRANSFER_SLICE_0 << (channel*4)) |
+	                              (XMC_CCU4_SHADOW_TRANSFER_PRESCALER_SLICE_0 << (channel*4)));
+
+	XMC_GPIO_SetMode(io4.channels[channel].port_base, io4.channels[channel].pin, ch_pin_pwm_mode);
+
+	XMC_CCU4_EnableClock(CCU40, channel);
+}
+
+void io4_pwm_update(const uint8_t channel, const uint32_t frequency, const uint16_t duty_cycle) {
+	uint32_t divisor = 1;
+	bool new_start = false;
+	uint32_t prescaler = 0;
+	uint32_t period_value = 0;
+	uint32_t compare_value = 0;
+
+	if(frequency == 0) {
+		io4_pwm_stop(channel);
+
+		return;
+	}
+
+	new_start = (io4.channels[channel].pwm.frequency == 0);
+
+	if(new_start) {
+		io4_pwm_init(channel);
+	}
+
+	io4.channels[channel].pwm.duty_cycle = MIN(10000, duty_cycle);
+	io4.channels[channel].pwm.frequency  = MIN(320000000, frequency);
+
+	divisor = 1;
+	prescaler = 0;
+	period_value = (640000000 / io4.channels[channel].pwm.frequency) - 1;
+
+	while(period_value > 0xFFFF) {
+		prescaler++;
+		divisor *= 2;
+		period_value = (640000000 / (io4.channels[channel].pwm.frequency * divisor)) - 1;
+	}
+
+	compare_value = (period_value * (10000 - duty_cycle) + 10000 / 2) / 10000;
+
+	XMC_CCU4_SLICE_SetPrescaler(io4_slice[channel], prescaler);
+	XMC_CCU4_SLICE_SetTimerPeriodMatch(io4_slice[channel], period_value);
+	XMC_CCU4_SLICE_SetTimerCompareMatch(io4_slice[channel], compare_value);
+	XMC_CCU4_EnableShadowTransfer(CCU40,
+	                              (XMC_CCU4_SHADOW_TRANSFER_SLICE_0 << (channel * 4)) |
+	                              (XMC_CCU4_SHADOW_TRANSFER_PRESCALER_SLICE_0 << (channel * 4)));
+
+	if(new_start) {
+		XMC_CCU4_SLICE_StartTimer(io4_slice[channel]);
+	}
+}
+
+void io4_pwm_stop(const uint8_t channel) {
+	if(io4.channels[channel].pwm.frequency != 0) {
+		io4.channels[channel].pwm.duty_cycle = 0;
+		io4.channels[channel].pwm.frequency  = 0;
+
+		XMC_CCU4_SLICE_StopTimer(io4_slice[channel]);
+		// Channel was in PWM mode put it back to output mode
+		XMC_GPIO_SetMode(io4.channels[channel].port_base,
+		                 io4.channels[channel].pin,
+		                 ch_pin_out_mode);
+	}
+}
+
+void io4_monoflop_update(const uint8_t channel, const bool value, const uint32_t time) {
+	io4.channels[channel].value = value;
+	io4.channels[channel].monoflop.time = time;
+	io4.channels[channel].monoflop.time_remaining = time;
+
+	if(io4.channels[channel].value) {
+		XMC_GPIO_SetOutputHigh(io4.channels[channel].port_base,
+		                       io4.channels[channel].pin);
+	}
+	else {
+		XMC_GPIO_SetOutputLow(io4.channels[channel].port_base,
+		                      io4.channels[channel].pin);
+	}
+
+	io4.channels[channel].monoflop.time_start = system_timer_get_ms();
+}
+
+void io4_monoflop_stop(const uint8_t channel) {
+	io4.channels[channel].monoflop.time = 0;
+	io4.channels[channel].monoflop.time_start = 0;
+	io4.channels[channel].monoflop.time_remaining = 0;
+}
+
+void io4_edge_count_update(const uint8_t channel,
+                           const uint8_t debounce,
+                           const uint8_t edge_type) {
+	io4.channels[channel].edge_count.cnt_edge_rising = 0;
+	io4.channels[channel].edge_count.cnt_edge_falling = 0;
+	io4.channels[channel].edge_count.debounce = debounce;
+	io4.channels[channel].edge_count.edge_type = edge_type;
+	io4.channels[channel].edge_count.last_value = \
+		(bool)XMC_GPIO_GetInput(io4.channels[channel].port_base,
+		                        io4.channels[channel].pin);
+	io4.channels[channel].edge_count.debounce_start = system_timer_get_ms();
+}
+
+void io4_edge_count_stop(const uint8_t channel) {
+	io4.channels[channel].edge_count.debounce = 0;
+	io4.channels[channel].edge_count.debounce_start = 0;
+	io4.channels[channel].edge_count.cnt_edge_rising = 0;
+	io4.channels[channel].edge_count.cnt_edge_falling = 0;
+}
+
+void io4_input_value_cb_update(const uint8_t channel,
+                               const uint32_t period,
+                               const bool value_has_to_change) {
+	io4.channels[channel].input_value_cb.period = period;
+	io4.channels[channel].input_value_cb.period_start = 0;
+	io4.channels[channel].input_value_cb.value_has_to_change = value_has_to_change;
+
+	if(period > 0) {
+		io4.channels[channel].input_value_cb.last_value = \
+			(bool)XMC_GPIO_GetInput(io4.channels[channel].port_base,
+			                        io4.channels[channel].pin);
+		io4.channels[channel].input_value_cb.period_start = system_timer_get_ms();
+	}
+}
+
+void io4_input_value_cb_stop(const uint8_t channel) {
+	io4.channels[channel].input_value_cb.period = 0;
+	io4.channels[channel].input_value_cb.period_start = 0;
+}
+
+void io4_all_input_value_cb_update(const uint32_t period,
+                                   const bool value_has_to_change) {
+	io4.all_input_value_cb.period_start = 0;
+	io4.all_input_value_cb.period = period;
+	io4.all_input_value_cb.value_has_to_change = value_has_to_change;
+
+	if(io4.all_input_value_cb.period > 0) {
+		for(uint8_t i = 0; i < NUMBER_OF_CHANNELS; i++) {
+			io4.all_input_value_cb.last_values[i] = \
+				(bool)XMC_GPIO_GetInput(io4.channels[i].port_base, io4.channels[i].pin);
+		}
+
+		io4.all_input_value_cb.period_start = system_timer_get_ms();
+	}
+}
+
+void io4_all_input_value_cb_stop(void) {
+	io4.all_input_value_cb.period = 0;
+	io4.all_input_value_cb.period_start = 0;
 }

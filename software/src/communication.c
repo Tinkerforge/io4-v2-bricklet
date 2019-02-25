@@ -1,5 +1,5 @@
 /* io4-v2-bricklet
- * Copyright (C) 2018 Ishraq Ibne Ashraf <ishraq@tinkerforge.com>
+ * Copyright (C) 2018-2019 Ishraq Ibne Ashraf <ishraq@tinkerforge.com>
  *
  * communication.c: TFP protocol message handling
  *
@@ -54,18 +54,28 @@ BootloaderHandleMessageResponse set_value(const SetValue *data) {
 	logd("[+] IO4-V2: set_value()\n\r");
 
 	for(uint8_t i = 0; i < NUMBER_OF_CHANNELS; i++) {
+		// Channel not an output
 		if(io4.channels[i].direction != IO4_V2_DIRECTION_OUT) {
-			// Channel not an output
 			continue;
 		}
 
+		// Stop PWM if active
+		io4_pwm_stop(i);
+
+		// Stop and reset monoflop if active
+		io4_monoflop_stop(i);
+
 		if(data->value & (1 << i)) {
-			io4.channels[i].value = true;
 			XMC_GPIO_SetOutputHigh(io4.channels[i].port_base, io4.channels[i].pin);
+
+			// Update state
+			io4.channels[i].value = true;
 		}
 		else {
-			io4.channels[i].value = false;
 			XMC_GPIO_SetOutputLow(io4.channels[i].port_base, io4.channels[i].pin);
+
+			// Update state
+			io4.channels[i].value = false;
 		}
 	}
 
@@ -79,6 +89,7 @@ BootloaderHandleMessageResponse get_value(const GetValue *data,
 	uint8_t bit_encoded_values = 0;
 	response->header.length = sizeof(GetValue_Response);
 
+	// FIXME: What to do if the channel has an active PWM?
 	for(uint8_t i = 0; i < NUMBER_OF_CHANNELS; i++) {
 		if(io4.channels[i].value) {
 			bit_encoded_values |= (1 << i);
@@ -104,17 +115,13 @@ BootloaderHandleMessageResponse set_selected_value(const SetSelectedValue *data)
 		return HANDLE_MESSAGE_RESPONSE_EMPTY;
 	}
 
-	// Reset monoflop
-	io4.channels[data->channel].monoflop.time = 0;
-	io4.channels[data->channel].monoflop.time_start = 0;
-	io4.channels[data->channel].monoflop.time_remaining = 0;
-
-	// Reset PWM
+	// Stop PWM if active
 	io4_pwm_stop(data->channel);
 
-	io4.channels[data->channel].value = data->value;
+	// Stop and reset monoflop if active
+	io4_monoflop_stop(data->channel);
 
-	if(io4.channels[data->channel].value) {
+	if(data->value) {
 		XMC_GPIO_SetOutputHigh(io4.channels[data->channel].port_base,
 		                       io4.channels[data->channel].pin);
 	}
@@ -123,86 +130,102 @@ BootloaderHandleMessageResponse set_selected_value(const SetSelectedValue *data)
 		                      io4.channels[data->channel].pin);
 	}
 
+	// Update state
+	io4.channels[data->channel].value = data->value;
+
 	return HANDLE_MESSAGE_RESPONSE_EMPTY;
 }
 
 BootloaderHandleMessageResponse set_configuration(const SetConfiguration *data) {
 	logd("[+] IO4-V2: set_configuration()\n\r");
 
-	char channel_previous_direction;
-
-	if(data->channel > NUMBER_OF_CHANNELS - 1) {
+	if(data->channel > (NUMBER_OF_CHANNELS - 1)) {
 		return HANDLE_MESSAGE_RESPONSE_INVALID_PARAMETER;
 	}
 
 	if(data->direction == IO4_V2_DIRECTION_IN) {
-		channel_previous_direction = io4.channels[data->channel].direction;
-		io4.channels[data->channel].init_value = data->value;
-		io4.channels[data->channel].direction = IO4_V2_DIRECTION_IN;
+		// Nothing to do
+		if((io4.channels[data->channel].direction == data->direction) && (io4.channels[data->channel].init_value == data->value)) {
+			return HANDLE_MESSAGE_RESPONSE_EMPTY;
+		}
 
-		if(io4.channels[data->channel].init_value) {
-			XMC_GPIO_Init(io4.channels[data->channel].port_base,
-			              io4.channels[data->channel].pin,
-			              &ch_pin_in_pull_up_config);
+		// Direction changing (OUT -> IN)
+		if(io4.channels[data->channel].direction != data->direction) {
+			// Stop PWM if active
+			io4_pwm_stop(data->channel);
+
+			// Stop and reset monoflop if active
+			io4_monoflop_stop(data->channel);
+
+			// Reset and stop edge counter
+			io4_edge_count_stop(data->channel);
+
+			// Reset and stop input value cb
+			io4_input_value_cb_stop(data->channel);
+			io4_all_input_value_cb_stop();
+		}
+
+		// Do input configuration
+		if(data->value) {
+			XMC_GPIO_SetMode(io4.channels[data->channel].port_base,
+			                 io4.channels[data->channel].pin,
+			                 ch_pin_in_pull_up_mode);
 		}
 		else {
-			XMC_GPIO_Init(io4.channels[data->channel].port_base,
-			              io4.channels[data->channel].pin,
-			              &ch_pin_in_no_pull_up_config);
+			XMC_GPIO_SetMode(io4.channels[data->channel].port_base,
+			                 io4.channels[data->channel].pin,
+			                 ch_pin_in_no_pull_up_mode);
 		}
 
+		// Update state
+		io4.channels[data->channel].init_value = data->value;
+		io4.channels[data->channel].direction = data->direction ;
 		io4.channels[data->channel].value = \
 			(bool)XMC_GPIO_GetInput(io4.channels[data->channel].port_base,
 			                        io4.channels[data->channel].pin);
-
-		if(channel_previous_direction == IO4_V2_DIRECTION_OUT) {
-			// Reset and start edge counter
-			io4.channels[data->channel].edge_count.debounce = 100;
-			io4.channels[data->channel].edge_count.cnt_edge_rising = 0;
-			io4.channels[data->channel].edge_count.cnt_edge_falling = 0;
-			io4.channels[data->channel].edge_count.last_value = io4.channels[data->channel].value;
-			io4.channels[data->channel].edge_count.debounce_start = system_timer_get_ms();
-		}
-
-		// Reset monoflop
-		io4.channels[data->channel].monoflop.time = 0;
-		io4.channels[data->channel].monoflop.time_start = 0;
-		io4.channels[data->channel].monoflop.time_remaining = 0;
-
-		// Reset PWM
-		io4_pwm_stop(data->channel);
 	}
 	else if(data->direction == IO4_V2_DIRECTION_OUT) {
+		if((io4.channels[data->channel].direction == data->direction) && (io4.channels[data->channel].value == data->value)) {
+			// Nothing to do
+			return HANDLE_MESSAGE_RESPONSE_EMPTY;
+		}
+
+		// Do output configuration (IN -> OUT)
+		if(io4.channels[data->channel].direction != data->direction) {
+			// Stop PWM if active
+			io4_pwm_stop(data->channel);
+
+			// Stop and reset monoflop if active
+			io4_monoflop_stop(data->channel);
+
+			// Reset and stop edge counter
+			io4_edge_count_stop(data->channel);
+
+			// Reset and stop input value cb
+			io4_input_value_cb_stop(data->channel);
+			io4_all_input_value_cb_stop();
+
+			XMC_GPIO_SetMode(io4.channels[data->channel].port_base,
+			                 io4.channels[data->channel].pin,
+			                 ch_pin_out_mode);
+		}
+
+		// Set output value
+		if(io4.channels[data->channel].value != data->value) {
+			if(data->value) {
+				XMC_GPIO_SetOutputHigh(io4.channels[data->channel].port_base,
+									io4.channels[data->channel].pin);
+			}
+			else {
+				XMC_GPIO_SetOutputLow(io4.channels[data->channel].port_base,
+									io4.channels[data->channel].pin);
+			}
+		}
+
+		// Update state
+		io4.channels[data->channel].value = data->value;
 		io4.channels[data->channel].init_value = data->value;
-		io4.channels[data->channel].direction = IO4_V2_DIRECTION_OUT;
-		io4.channels[data->channel].value = io4.channels[data->channel].init_value;
-
-		XMC_GPIO_Init(io4.channels[data->channel].port_base,
-		              io4.channels[data->channel].pin,
-		              &ch_pin_out_config);
-
-		if(io4.channels[data->channel].init_value) {
-			XMC_GPIO_SetOutputHigh(io4.channels[data->channel].port_base,
-			                       io4.channels[data->channel].pin);
-		}
-		else {
-			XMC_GPIO_SetOutputLow(io4.channels[data->channel].port_base,
-			                      io4.channels[data->channel].pin);
-		}
-
-		// Reset and stop edge counter
-		io4.channels[data->channel].edge_count.debounce = 0;
-		io4.channels[data->channel].edge_count.debounce_start = 0;
-		io4.channels[data->channel].edge_count.cnt_edge_rising = 0;
-		io4.channels[data->channel].edge_count.cnt_edge_falling = 0;
-
-		// Reset monoflop
-		io4.channels[data->channel].monoflop.time = 0;
-		io4.channels[data->channel].monoflop.time_start = 0;
-		io4.channels[data->channel].monoflop.time_remaining = 0;
-
-		// Reset PWM
-		io4_pwm_stop(data->channel);
+		io4.channels[data->channel].direction = data->direction;
 	}
 	else {
 		return HANDLE_MESSAGE_RESPONSE_INVALID_PARAMETER;
@@ -237,16 +260,7 @@ BootloaderHandleMessageResponse set_input_value_callback_configuration(const Set
 		return HANDLE_MESSAGE_RESPONSE_INVALID_PARAMETER;
 	}
 
-	io4.channels[data->channel].input_value_cb.period_start = 0;
-	io4.channels[data->channel].input_value_cb.period = data->period;
-	io4.channels[data->channel].input_value_cb.value_has_to_change = data->value_has_to_change;
-
-	if(io4.channels[data->channel].input_value_cb.period > 0) {
-		io4.channels[data->channel].input_value_cb.last_value = \
-			(bool)XMC_GPIO_GetInput(io4.channels[data->channel].port_base,
-			                        io4.channels[data->channel].pin);
-		io4.channels[data->channel].input_value_cb.period_start = system_timer_get_ms();
-	}
+	io4_input_value_cb_update(data->channel, data->period, data->value_has_to_change);
 
 	return HANDLE_MESSAGE_RESPONSE_EMPTY;
 }
@@ -276,19 +290,7 @@ BootloaderHandleMessageResponse set_all_input_value_callback_configuration(const
 		}
 	}
 
-	io4.all_input_value_cb.period_start = 0;
-	io4.all_input_value_cb.period = data->period;
-	io4.all_input_value_cb.value_has_to_change = data->value_has_to_change;
-
-	if(io4.all_input_value_cb.period > 0) {		
-		// Store current channel states
-		for(uint8_t i = 0; i < NUMBER_OF_CHANNELS; i++) {
-			io4.all_input_value_cb.last_values[i] = \
-				(bool)XMC_GPIO_GetInput(io4.channels[i].port_base, io4.channels[i].pin);
-		}
-
-		io4.all_input_value_cb.period_start = system_timer_get_ms();
-	}
+	io4_all_input_value_cb_update(data->period, data->value_has_to_change);
 
 	return HANDLE_MESSAGE_RESPONSE_EMPTY;
 }
@@ -315,23 +317,10 @@ BootloaderHandleMessageResponse set_monoflop(const SetMonoflop *data) {
 		return HANDLE_MESSAGE_RESPONSE_INVALID_PARAMETER;
 	}
 
-	// Reset PWM
+	// Reset and stop PWM
 	io4_pwm_stop(data->channel);
 
-	io4.channels[data->channel].value = data->value;
-	io4.channels[data->channel].monoflop.time = data->time;
-	io4.channels[data->channel].monoflop.time_remaining = data->time;
-
-	if(io4.channels[data->channel].value) {
-		XMC_GPIO_SetOutputHigh(io4.channels[data->channel].port_base,
-		                       io4.channels[data->channel].pin);
-	}
-	else {
-		XMC_GPIO_SetOutputLow(io4.channels[data->channel].port_base,
-		                      io4.channels[data->channel].pin);
-	}
-
-	io4.channels[data->channel].monoflop.time_start = system_timer_get_ms();
+	io4_monoflop_update(data->channel, data->value, data->time);
 
 	return HANDLE_MESSAGE_RESPONSE_EMPTY;
 }
@@ -401,14 +390,7 @@ BootloaderHandleMessageResponse set_edge_count_configuration(const SetEdgeCountC
 		return HANDLE_MESSAGE_RESPONSE_INVALID_PARAMETER;
 	}
 
-	io4.channels[data->channel].edge_count.cnt_edge_rising = 0;
-	io4.channels[data->channel].edge_count.cnt_edge_falling = 0;
-	io4.channels[data->channel].edge_count.debounce = data->debounce;
-	io4.channels[data->channel].edge_count.edge_type = data->edge_type;
-	io4.channels[data->channel].edge_count.last_value = \
-		(bool)XMC_GPIO_GetInput(io4.channels[data->channel].port_base,
-		                        io4.channels[data->channel].pin);
-	io4.channels[data->channel].edge_count.debounce_start = system_timer_get_ms();
+	io4_edge_count_update(data->channel, data->debounce, data->edge_type);
 
 	return HANDLE_MESSAGE_RESPONSE_EMPTY;
 }
@@ -442,10 +424,8 @@ BootloaderHandleMessageResponse set_pwm_configuration(const SetPWMConfiguration 
 		return HANDLE_MESSAGE_RESPONSE_INVALID_PARAMETER;
 	}
 
-	// Reset monoflop
-	io4.channels[data->channel].monoflop.time = 0;
-	io4.channels[data->channel].monoflop.time_start = 0;
-	io4.channels[data->channel].monoflop.time_remaining = 0;
+	// Stop and reset monoflop
+	io4_monoflop_stop(data->channel);
 
 	io4_pwm_update(data->channel, data->frequency, data->duty_cycle);
 

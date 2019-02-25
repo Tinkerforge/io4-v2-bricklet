@@ -1,5 +1,5 @@
 /* io4-v2-bricklet
- * Copyright (C) 2018 Ishraq Ibne Ashraf <ishraq@tinkerforge.com>
+ * Copyright (C) 2018-2019 Ishraq Ibne Ashraf <ishraq@tinkerforge.com>
  *
  * io4.h: Implementation of IO4 V2 Bricklet
  *
@@ -108,13 +108,31 @@ typedef struct {
 } IO4;
 
 extern IO4 io4;
-extern XMC_GPIO_CONFIG_t ch_pin_out_config;
-extern XMC_GPIO_CONFIG_t ch_pin_in_pull_up_config;
-extern XMC_GPIO_CONFIG_t ch_pin_in_no_pull_up_config;
+extern XMC_GPIO_MODE_t ch_pin_out_mode;
+extern XMC_GPIO_MODE_t ch_pin_pwm_mode;
+extern XMC_GPIO_MODE_t ch_pin_in_pull_up_mode;
+extern XMC_GPIO_MODE_t ch_pin_in_no_pull_up_mode;
 
-void io4_pwm_stop(const uint8_t channel);
-void io4_pwm_update(const uint8_t channel, const uint32_t frequency, const uint16_t duty_cycle);
 void io4_init(void);
 void io4_tick(void);
+void io4_pwm_update(const uint8_t channel,
+                    const uint32_t frequency,
+                    const uint16_t duty_cycle);
+void io4_pwm_stop(const uint8_t channel);
+void io4_monoflop_update(const uint8_t channel,
+                         const bool value,
+                         const uint32_t time);
+void io4_monoflop_stop(const uint8_t channel);
+void io4_edge_count_update(const uint8_t channel,
+                           const uint8_t debounce,
+                           const uint8_t edge_type);
+void io4_edge_count_stop(const uint8_t channel);
+void io4_input_value_cb_update(const uint8_t channel,
+                               const uint32_t period,
+                               const bool value_has_to_change);
+void io4_input_value_cb_stop(const uint8_t channel);
+void io4_all_input_value_cb_update(const uint32_t period,
+                                   const bool value_has_to_change);
+void io4_all_input_value_cb_stop(void);
 
 #endif
