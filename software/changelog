@@ -3,3 +3,6 @@
 
 2018-10-04: 2.0.1 (a77db44)
 - Fix race condition with potential buffer overflow (through bricklib2)
+
+2019-02-27: 2.0.2 (TBD)
+- Fix glitches during high/low/pwm transations
