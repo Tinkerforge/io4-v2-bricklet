@@ -179,25 +179,14 @@ BootloaderHandleMessageResponse set_configuration(const SetConfiguration *data) 
 
 		// Update state
 		io4.channels[data->channel].init_value = data->value;
-		io4.channels[data->channel].direction = data->direction ;
+		io4.channels[data->channel].direction = data->direction;
 		io4.channels[data->channel].value = \
 			(bool)XMC_GPIO_GetInput(io4.channels[data->channel].port_base,
 			                        io4.channels[data->channel].pin);
 	}
 	else if(data->direction == IO4_V2_DIRECTION_OUT) {
-		if((io4.channels[data->channel].direction == data->direction) && (io4.channels[data->channel].value == data->value)) {
-			// Nothing to do
-			return HANDLE_MESSAGE_RESPONSE_EMPTY;
-		}
-
 		// Do output configuration (IN -> OUT)
 		if(io4.channels[data->channel].direction != data->direction) {
-			// Stop PWM if active
-			io4_pwm_stop(data->channel);
-
-			// Stop and reset monoflop if active
-			io4_monoflop_stop(data->channel);
-
 			// Reset and stop edge counter
 			io4_edge_count_stop(data->channel);
 
@@ -208,18 +197,22 @@ BootloaderHandleMessageResponse set_configuration(const SetConfiguration *data) 
 			XMC_GPIO_SetMode(io4.channels[data->channel].port_base,
 			                 io4.channels[data->channel].pin,
 			                 ch_pin_out_mode);
+		} else {
+			// Stop PWM if active
+			io4_pwm_stop(data->channel);
+
+			// Stop and reset monoflop if active
+			io4_monoflop_stop(data->channel);
 		}
 
 		// Set output value
-		if(io4.channels[data->channel].value != data->value) {
-			if(data->value) {
-				XMC_GPIO_SetOutputHigh(io4.channels[data->channel].port_base,
-									io4.channels[data->channel].pin);
-			}
-			else {
-				XMC_GPIO_SetOutputLow(io4.channels[data->channel].port_base,
-									io4.channels[data->channel].pin);
-			}
+		if(data->value) {
+			XMC_GPIO_SetOutputHigh(io4.channels[data->channel].port_base,
+			                       io4.channels[data->channel].pin);
+		}
+		else {
+			XMC_GPIO_SetOutputLow(io4.channels[data->channel].port_base,
+			                      io4.channels[data->channel].pin);
 		}
 
 		// Update state

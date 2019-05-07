@@ -67,6 +67,7 @@ void io4_init(void) {
 		io4.channels[i].monoflop.time = 0;
 		io4.channels[i].monoflop.time_start = 0;
 		io4.channels[i].monoflop.time_remaining = 0;
+		io4.channels[i].monoflop.running = false;
 
 		// Channel input value callback config
 		io4.channels[i].input_value_cb.period = 0;
@@ -213,20 +214,14 @@ void io4_tick(void) {
 			// Channel is output
 
 			// Manage monoflop
-			if(io4.channels[i].monoflop.time > 0) {
+			if(io4.channels[i].monoflop.running) {
 				if(system_timer_is_time_elapsed_ms(io4.channels[i].monoflop.time_start, io4.channels[i].monoflop.time)) {
 					// Monoflop time expired
-
-					io4.channels[i].monoflop.time = 0;
 					io4.channels[i].monoflop.time_start = 0;
 					io4.channels[i].monoflop.time_remaining = 0;
+					io4.channels[i].monoflop.running = false;
 
-					if(io4.channels[i].value) {
-						io4.channels[i].value = false;
-					}
-					else {
-						io4.channels[i].value = true;
-					}
+					io4.channels[i].value = !io4.channels[i].value;
 
 					if(io4.channels[i].value) {
 						XMC_GPIO_SetOutputHigh(io4.channels[i].port_base, io4.channels[i].pin);
@@ -376,6 +371,7 @@ void io4_monoflop_update(const uint8_t channel, const bool value, const uint32_t
 	io4.channels[channel].value = value;
 	io4.channels[channel].monoflop.time = time;
 	io4.channels[channel].monoflop.time_remaining = time;
+	io4.channels[channel].monoflop.running = true;
 
 	if(io4.channels[channel].value) {
 		XMC_GPIO_SetOutputHigh(io4.channels[channel].port_base,
@@ -390,9 +386,9 @@ void io4_monoflop_update(const uint8_t channel, const bool value, const uint32_t
 }
 
 void io4_monoflop_stop(const uint8_t channel) {
-	io4.channels[channel].monoflop.time = 0;
 	io4.channels[channel].monoflop.time_start = 0;
 	io4.channels[channel].monoflop.time_remaining = 0;
+	io4.channels[channel].monoflop.running = false;
 }
 
 void io4_edge_count_update(const uint8_t channel,

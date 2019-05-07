@@ -5,4 +5,8 @@
 - Fix race condition with potential buffer overflow (through bricklib2)
 
 2019-02-27: 2.0.2 (1b4c103)
-- Fix glitches during high/low/pwm transations
+- Fix glitches during high/low/PWM transitions
+
+2019-05-07: 2.0.3 (<unknown>)
+- Abort active monoflop/PWM on set-configuration call for output
+- Don't clear monoflop time on monoflop done/abort to match documentation
