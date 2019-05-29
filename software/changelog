@@ -10,3 +10,6 @@
 2019-05-07: 2.0.3 (<unknown>)
 - Abort active monoflop/PWM on set-configuration call for output
 - Don't clear monoflop time on monoflop done/abort to match documentation
+
+2019-05-29: 2.0.4 (TBD)
+- Fix SPITFP IRQ race condition with other higher prio IRQs (through bricklib2)
