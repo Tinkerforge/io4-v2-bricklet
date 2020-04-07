@@ -13,14 +13,14 @@ fn main() -> Result<(), Box<dyn Error>> {
                                           // Don't use device before ipcon is connected.
 
     // Configure channel 3 as output low
-    io.set_configuration(3, 'o', false);
+    io.set_configuration(3, 'o', false).recv()?;
 
     // Set channel 3 alternating high/low 10 times with 100 ms delay
     for _i in 0..10 {
         thread::sleep(Duration::from_millis(100));
-        io.set_selected_value(3, true);
+        io.set_selected_value(3, true).recv()?;
         thread::sleep(Duration::from_millis(100));
-        io.set_selected_value(3, false);
+        io.set_selected_value(3, false).recv()?;
     }
 
     println!("Press enter to exit.");
