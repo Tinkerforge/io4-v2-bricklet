@@ -1,14 +1,9 @@
-
-
 #include "bindings/hal_common.h"
 #include "bindings/bricklet_io4_v2.h"
 
 #define UID "XYZ" // Change XYZ to the UID of your IO-4 Bricklet 2.0
 
 void check(int rc, const char* msg);
-
-
-
 
 TF_IO4V2 io;
 
