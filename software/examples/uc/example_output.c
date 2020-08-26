@@ -11,7 +11,6 @@ void example_setup(TF_HalContext *hal) {
 	// Create device object
 	check(tf_io4_v2_create(&io, UID, hal), "create device object");
 
-
 	// Configure channel 3 as output low
 	check(tf_io4_v2_set_configuration(&io, 3, 'o', false), "call set_configuration");
 
@@ -23,7 +22,6 @@ void example_setup(TF_HalContext *hal) {
 		tf_hal_sleep_us(hal, 100 * 1000);
 		check(tf_io4_v2_set_selected_value(&io, 3, false), "call set_selected_value");
 	}
-
 }
 
 void example_loop(TF_HalContext *hal) {

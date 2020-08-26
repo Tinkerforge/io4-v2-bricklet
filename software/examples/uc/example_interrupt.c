@@ -22,15 +22,13 @@ void example_setup(TF_HalContext *hal) {
 	// Create device object
 	check(tf_io4_v2_create(&io, UID, hal), "create device object");
 
-
 	// Register input value callback to function input_value_handler
 	tf_io4_v2_register_input_value_callback(&io,
-	                                       input_value_handler,
-	                                       NULL);
+	                                        input_value_handler,
+	                                        NULL);
 
 	// Set period for input value (channel 1) callback to 0.5s (500ms)
 	tf_io4_v2_set_input_value_callback_configuration(&io, 1, 500, false);
-
 }
 
 void example_loop(TF_HalContext *hal) {
