@@ -19,17 +19,14 @@ void example_setup(TF_HAL *hal) {
 	// Create device object
 	check(tf_io4_v2_create(&io, UID, hal), "create device object");
 
-	// Configure channel 3 as output low
-	check(tf_io4_v2_set_configuration(&io, 3, 'o', false), "call set_configuration");
+	// Get current value
+	bool value[4];
+	check(tf_io4_v2_get_value(&io, value), "get value");
 
-	// Set channel 3 alternating high/low 10 times with 100 ms delay
-	int i;
-	for (i = 0; i < 10; ++i) {
-		tf_hal_sleep_us(hal, 100 * 1000);
-		check(tf_io4_v2_set_selected_value(&io, 3, true), "call set_selected_value");
-		tf_hal_sleep_us(hal, 100 * 1000);
-		check(tf_io4_v2_set_selected_value(&io, 3, false), "call set_selected_value");
-	}
+	tf_hal_printf("Channel 0: %s\n", value[0] ? "true" : "false");
+	tf_hal_printf("Channel 1: %s\n", value[1] ? "true" : "false");
+	tf_hal_printf("Channel 2: %s\n", value[2] ? "true" : "false");
+	tf_hal_printf("Channel 3: %s\n", value[3] ? "true" : "false");
 }
 
 void example_loop(TF_HAL *hal) {

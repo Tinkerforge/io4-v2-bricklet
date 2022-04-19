@@ -9,8 +9,8 @@
 
 void check(int rc, const char* msg);
 
-void example_setup(TF_HalContext *hal);
-void example_loop(TF_HalContext *hal);
+void example_setup(TF_HAL *hal);
+void example_loop(TF_HAL *hal);
 
 
 // Callback function for input value callback
@@ -26,7 +26,7 @@ static void input_value_handler(TF_IO4V2 *device, uint8_t channel, bool changed,
 
 static TF_IO4V2 io;
 
-void example_setup(TF_HalContext *hal) {
+void example_setup(TF_HAL *hal) {
 	// Create device object
 	check(tf_io4_v2_create(&io, UID, hal), "create device object");
 
@@ -39,7 +39,7 @@ void example_setup(TF_HalContext *hal) {
 	tf_io4_v2_set_input_value_callback_configuration(&io, 1, 500, false);
 }
 
-void example_loop(TF_HalContext *hal) {
+void example_loop(TF_HAL *hal) {
 	// Poll for callbacks
 	tf_hal_callback_tick(hal, 0);
 }
