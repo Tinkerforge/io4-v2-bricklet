@@ -6,11 +6,11 @@
 
   (title_block
     (title "IO4 Bricklet 2.0")
-    (date "2018-01-16")
-    (rev "1.0")
+    (date "2023-01-27")
+    (rev "2.0")
     (company "Tinkerforge GmbH")
     (comment 1 "Licensed under CERN OHL v.1.1")
-    (comment 2 "Copyright (©) 2018, L.Lauer <lukas@tinkerforge.com>")
+    (comment 2 "Copyright (©) 2023, T.Schneidermann <tim@tinkerforge.com>")
   )
 
   (lib_symbols
@@ -1069,7 +1069,7 @@
     (uuid fd63861c-2b7d-4854-88de-99beea62cd12)
   )
 
-  (text "Copyright Tinkerforge GmbH 2018.\nThis documentation describes Open Hardware and is licensed under the\nCERN OHL v. 1.1.\nYou may redistribute and modify this documentation under the terms of the\nCERN OHL v.1.1. (http://ohwr.org/cernohl). This documentation is distributed\nWITHOUT ANY EXPRESS OR IMPLIED WARRANTY, INCLUDING OF\nMERCHANTABILITY, SATISFACTORY QUALITY AND FITNESS FOR A\nPARTICULAR PURPOSE. Please see the CERN OHL v.1.1 for applicable\nconditions\n"
+  (text "Copyright Tinkerforge GmbH 2023.\nThis documentation describes Open Hardware and is licensed under the\nCERN OHL v. 1.1.\nYou may redistribute and modify this documentation under the terms of the\nCERN OHL v.1.1. (http://ohwr.org/cernohl). This documentation is distributed\nWITHOUT ANY EXPRESS OR IMPLIED WARRANTY, INCLUDING OF\nMERCHANTABILITY, SATISFACTORY QUALITY AND FITNESS FOR A\nPARTICULAR PURPOSE. Please see the CERN OHL v.1.1 for applicable\nconditions\n"
     (at 13.97 195.58 0)
     (effects (font (size 1.016 1.016)) (justify left bottom))
     (uuid 10b65574-a251-4b38-a6a9-dfe5a848edd3)
