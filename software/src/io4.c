@@ -1,5 +1,6 @@
 /* io4-v2-bricklet
  * Copyright (C) 2018-2019 Ishraq Ibne Ashraf <ishraq@tinkerforge.com>
+ * Copyright (C) 2025 Olaf Lüke <olaf@tinkerforge.com>
  *
  * io4.c: Implementation of IO4 V2 Bricklet
  *
@@ -29,8 +30,21 @@
 #include "bricklib2/hal/system_timer/system_timer.h"
 
 #include "communication.h"
+#include "timer.h"
 
 #include "xmc_ccu4.h"
+
+#define io_timer_handler IRQ_Hdlr_21
+
+uint8_t io4_capture_input_data[IO4_CAPTURE_INPUT_SIZE];
+uint8_t io4_capture_input_data_last_index = 0;
+volatile uint8_t io4_capture_input_data_index = 0;
+
+void __attribute__((optimize("-O3"))) __attribute__ ((section (".ram_code"))) io_timer_handler(void) {
+	// io4_capture_input_data has size of 256, we use the uint8_t overflow here to our advantage
+	io4_capture_input_data[io4_capture_input_data_index] = PORT1->IN & 0x0F;
+	io4_capture_input_data_index++;
+}
 
 IO4 io4;
 
@@ -103,6 +117,11 @@ void io4_init(void) {
 	io4.all_input_value_cb.period_start = 0;
 	io4.all_input_value_cb.value_has_to_change = false;
 
+	// Capture input callback
+	io4.capture_input_callback_enabled = false;
+	io4.capture_input_buffer_index = 0;
+	memset(io4.capture_input_buffer, 0, sizeof(io4.capture_input_buffer));
+
 	// Input value callback ringbuffer init
 	ringbuffer_init(&io4.input_value_cb_rb, INPUT_VALUE_CB_BUFFER_SIZE, &io4.input_value_cb_buffer[0]);
 	ringbuffer_init(&io4.all_input_value_cb.cb_rb, ALL_INPUT_VALUE_CB_BUFFER_SIZE, &io4.all_input_value_cb.cb_buffer[0]);
@@ -112,6 +131,35 @@ void io4_init(void) {
 }
 
 void io4_tick(void) {
+	if(io4.capture_input_callback_enabled) {
+		// We need to wait for full input buffer to be send
+		if(io4.capture_input_buffer_index == 64) {
+			return;
+		}
+
+		uint8_t new_index = io4_capture_input_data_index;
+		if(new_index != io4_capture_input_data_last_index) {
+			uint8_t new_data_length = new_index - io4_capture_input_data_last_index;
+			new_data_length = new_data_length & 0xFE; // Make sure we have even number of bytes
+			for (uint8_t i = 0; i < new_data_length; i += 2) {
+				// Two io4 captures per byte
+				io4.capture_input_buffer[io4.capture_input_buffer_index] =
+					(io4_capture_input_data[io4_capture_input_data_last_index + i + 0] << 0) |
+					(io4_capture_input_data[io4_capture_input_data_last_index + i + 1] << 4);
+
+				io4.capture_input_buffer_index++;
+				if(io4.capture_input_buffer_index == 64) {
+					break;
+				}
+			}
+
+			io4_capture_input_data_last_index += new_data_length;
+		}
+
+		// Ignore other IO4 functions if capture input callback is enabled
+		return;
+	}
+
 	uint8_t all_channel_values = 0;
 	uint8_t all_channel_changed = 0;
 	bool all_ch_in_value_changed = false;

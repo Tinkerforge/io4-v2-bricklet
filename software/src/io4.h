@@ -1,5 +1,6 @@
 /* io4-v2-bricklet
  * Copyright (C) 2018-2019 Ishraq Ibne Ashraf <ishraq@tinkerforge.com>
+ * Copyright (C) 2025 Olaf Lüke <olaf@tinkerforge.com>
  *
  * io4.h: Implementation of IO4 V2 Bricklet
  *
@@ -28,6 +29,8 @@
 #include "bricklib2/utility/ringbuffer.h"
 
 #include "xmc_gpio.h"
+
+#define IO4_CAPTURE_INPUT_SIZE 256
 
 #define NUMBER_OF_CHANNELS 4
 
@@ -102,10 +105,15 @@ typedef struct {
   Ringbuffer input_value_cb_rb;
   ALL_IO_CH_INPUT_VALUE_CB_t all_input_value_cb;
   uint8_t input_value_cb_buffer[INPUT_VALUE_CB_BUFFER_SIZE];
-  
+
   // Monoflop callback
   Ringbuffer monoflop_cb_rb;
   uint8_t monoflop_cb_buffer[MONOFLOP_CB_BUFFER_SIZE];
+
+  bool capture_input_callback_enabled;
+  uint16_t capture_input_callback_time_between_capture;
+  uint8_t capture_input_buffer[64];
+  uint8_t capture_input_buffer_index;
 } IO4;
 
 extern IO4 io4;

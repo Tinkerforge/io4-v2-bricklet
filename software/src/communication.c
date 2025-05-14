@@ -1,5 +1,6 @@
 /* io4-v2-bricklet
  * Copyright (C) 2018-2019 Ishraq Ibne Ashraf <ishraq@tinkerforge.com>
+ * Copyright (C) 2025 Olaf Lüke <olaf@tinkerforge.com>
  *
  * communication.c: TFP protocol message handling
  *
@@ -27,25 +28,29 @@
 #include "bricklib2/utility/util_definitions.h"
 
 #include "io4.h"
+#include "timer.h"
 
 BootloaderHandleMessageResponse handle_message(const void *message, void *response) {
+	const uint8_t length = ((TFPMessageHeader*)message)->length;
 	switch(tfp_get_fid_from_message(message)) {
-		case FID_SET_VALUE: return set_value(message);
-		case FID_GET_VALUE: return get_value(message, response);
-		case FID_SET_SELECTED_VALUE: return set_selected_value(message);
-		case FID_SET_CONFIGURATION: return set_configuration(message);
-		case FID_GET_CONFIGURATION: return get_configuration(message, response);
-		case FID_SET_INPUT_VALUE_CALLBACK_CONFIGURATION: return set_input_value_callback_configuration(message);
-		case FID_GET_INPUT_VALUE_CALLBACK_CONFIGURATION: return get_input_value_callback_configuration(message, response);
-		case FID_SET_ALL_INPUT_VALUE_CALLBACK_CONFIGURATION: return set_all_input_value_callback_configuration(message);
-		case FID_GET_ALL_INPUT_VALUE_CALLBACK_CONFIGURATION: return get_all_input_value_callback_configuration(message, response);
-		case FID_SET_MONOFLOP: return set_monoflop(message);
-		case FID_GET_MONOFLOP: return get_monoflop(message, response);
-		case FID_GET_EDGE_COUNT: return get_edge_count(message, response);
-		case FID_SET_EDGE_COUNT_CONFIGURATION: return set_edge_count_configuration(message);
-		case FID_GET_EDGE_COUNT_CONFIGURATION: return get_edge_count_configuration(message, response);
-		case FID_SET_PWM_CONFIGURATION: return set_pwm_configuration(message);
-		case FID_GET_PWM_CONFIGURATION: return get_pwm_configuration(message, response);
+		case FID_SET_VALUE:                                  return length != sizeof(SetValue)                              ? HANDLE_MESSAGE_RESPONSE_INVALID_PARAMETER : set_value(message);
+		case FID_GET_VALUE:                                  return length != sizeof(GetValue)                              ? HANDLE_MESSAGE_RESPONSE_INVALID_PARAMETER : get_value(message, response);
+		case FID_SET_SELECTED_VALUE:                         return length != sizeof(SetSelectedValue)                      ? HANDLE_MESSAGE_RESPONSE_INVALID_PARAMETER : set_selected_value(message);
+		case FID_SET_CONFIGURATION:                          return length != sizeof(SetConfiguration)                      ? HANDLE_MESSAGE_RESPONSE_INVALID_PARAMETER : set_configuration(message);
+		case FID_GET_CONFIGURATION:                          return length != sizeof(GetConfiguration)                      ? HANDLE_MESSAGE_RESPONSE_INVALID_PARAMETER : get_configuration(message, response);
+		case FID_SET_INPUT_VALUE_CALLBACK_CONFIGURATION:     return length != sizeof(SetInputValueCallbackConfiguration)    ? HANDLE_MESSAGE_RESPONSE_INVALID_PARAMETER : set_input_value_callback_configuration(message);
+		case FID_GET_INPUT_VALUE_CALLBACK_CONFIGURATION:     return length != sizeof(GetInputValueCallbackConfiguration)    ? HANDLE_MESSAGE_RESPONSE_INVALID_PARAMETER : get_input_value_callback_configuration(message, response);
+		case FID_SET_ALL_INPUT_VALUE_CALLBACK_CONFIGURATION: return length != sizeof(SetAllInputValueCallbackConfiguration) ? HANDLE_MESSAGE_RESPONSE_INVALID_PARAMETER : set_all_input_value_callback_configuration(message);
+		case FID_GET_ALL_INPUT_VALUE_CALLBACK_CONFIGURATION: return length != sizeof(GetAllInputValueCallbackConfiguration) ? HANDLE_MESSAGE_RESPONSE_INVALID_PARAMETER : get_all_input_value_callback_configuration(message, response);
+		case FID_SET_MONOFLOP:                               return length != sizeof(SetMonoflop)                           ? HANDLE_MESSAGE_RESPONSE_INVALID_PARAMETER : set_monoflop(message);
+		case FID_GET_MONOFLOP:                               return length != sizeof(GetMonoflop)                           ? HANDLE_MESSAGE_RESPONSE_INVALID_PARAMETER : get_monoflop(message, response);
+		case FID_GET_EDGE_COUNT:                             return length != sizeof(GetEdgeCount)                          ? HANDLE_MESSAGE_RESPONSE_INVALID_PARAMETER : get_edge_count(message, response);
+		case FID_SET_EDGE_COUNT_CONFIGURATION:               return length != sizeof(SetEdgeCountConfiguration)             ? HANDLE_MESSAGE_RESPONSE_INVALID_PARAMETER : set_edge_count_configuration(message);
+		case FID_GET_EDGE_COUNT_CONFIGURATION:               return length != sizeof(GetEdgeCountConfiguration)             ? HANDLE_MESSAGE_RESPONSE_INVALID_PARAMETER : get_edge_count_configuration(message, response);
+		case FID_SET_PWM_CONFIGURATION:                      return length != sizeof(SetPWMConfiguration)                   ? HANDLE_MESSAGE_RESPONSE_INVALID_PARAMETER : set_pwm_configuration(message);
+		case FID_GET_PWM_CONFIGURATION:                      return length != sizeof(GetPWMConfiguration)                   ? HANDLE_MESSAGE_RESPONSE_INVALID_PARAMETER : get_pwm_configuration(message, response);
+		case FID_SET_CAPTURE_INPUT_CALLBACK_CONFIGURATION:   return length != sizeof(SetCaptureInputCallbackConfiguration)  ? HANDLE_MESSAGE_RESPONSE_INVALID_PARAMETER : set_capture_input_callback_configuration(message);
+		case FID_GET_CAPTURE_INPUT_CALLBACK_CONFIGURATION:   return length != sizeof(GetCaptureInputCallbackConfiguration)  ? HANDLE_MESSAGE_RESPONSE_INVALID_PARAMETER : get_capture_input_callback_configuration(message, response);
 		default: return HANDLE_MESSAGE_RESPONSE_NOT_SUPPORTED;
 	}
 }
@@ -437,6 +442,28 @@ BootloaderHandleMessageResponse get_pwm_configuration(const GetPWMConfiguration 
 	return HANDLE_MESSAGE_RESPONSE_NEW_MESSAGE;
 }
 
+BootloaderHandleMessageResponse set_capture_input_callback_configuration(const SetCaptureInputCallbackConfiguration *data) {
+	io4.capture_input_callback_enabled              = data->enable;
+	io4.capture_input_callback_time_between_capture = BETWEEN(20, data->time_between_capture, 0xFFFF);
+
+	if(data->enable) {
+		timer_init();
+	} else {
+		timer_stop();
+	}
+
+	return HANDLE_MESSAGE_RESPONSE_EMPTY;
+}
+
+BootloaderHandleMessageResponse get_capture_input_callback_configuration(const GetCaptureInputCallbackConfiguration *data, GetCaptureInputCallbackConfiguration_Response *response) {
+	response->header.length        = sizeof(GetCaptureInputCallbackConfiguration_Response);
+	response->enable               = io4.capture_input_callback_enabled;
+	response->time_between_capture = io4.capture_input_callback_time_between_capture;
+
+	return HANDLE_MESSAGE_RESPONSE_NEW_MESSAGE;
+}
+
+
 bool handle_input_value_callback(void) {
 	static bool is_buffered = false;
 	static InputValue_Callback cb;
@@ -541,6 +568,33 @@ bool handle_monoflop_done_callback(void) {
 
 	return false;
 }
+
+bool handle_capture_input_callback(void) {
+	static bool is_buffered = false;
+	static CaptureInput_Callback cb;
+
+	if(!is_buffered) {
+		// Nothing to send
+		if(io4.capture_input_buffer_index != 64) {
+			return false;
+		}
+
+		tfp_make_default_header(&cb.header, bootloader_get_uid(), sizeof(CaptureInput_Callback), FID_CALLBACK_CAPTURE_INPUT);
+		memcpy(cb.data, io4.capture_input_buffer, sizeof(io4.capture_input_buffer));
+		io4.capture_input_buffer_index = 0;
+	}
+
+	if(bootloader_spitfp_is_send_possible(&bootloader_status.st)) {
+		bootloader_spitfp_send_ack_and_message(&bootloader_status, (uint8_t*)&cb, sizeof(CaptureInput_Callback));
+		is_buffered = false;
+		return true;
+	} else {
+		is_buffered = true;
+	}
+
+	return false;
+}
+
 
 void communication_tick(void) {
 	communication_callback_tick();

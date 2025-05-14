@@ -1,5 +1,5 @@
 /* io4-v2-bricklet
- * Copyright (C) 2018 Olaf Lüke <olaf@tinkerforge.com>
+ * Copyright (C) 2018,2025 Olaf Lüke <olaf@tinkerforge.com>
  *
  * communication.h: TFP protocol message handling
  *
@@ -34,6 +34,7 @@ void communication_tick(void);
 void communication_init(void);
 
 // Constants
+
 #define IO4_V2_DIRECTION_IN 'i'
 #define IO4_V2_DIRECTION_OUT 'o'
 
@@ -76,10 +77,13 @@ void communication_init(void);
 #define FID_GET_EDGE_COUNT_CONFIGURATION 14
 #define FID_SET_PWM_CONFIGURATION 15
 #define FID_GET_PWM_CONFIGURATION 16
+#define FID_SET_CAPTURE_INPUT_CALLBACK_CONFIGURATION 20
+#define FID_GET_CAPTURE_INPUT_CALLBACK_CONFIGURATION 21
 
 #define FID_CALLBACK_INPUT_VALUE 17
 #define FID_CALLBACK_ALL_INPUT_VALUE 18
 #define FID_CALLBACK_MONOFLOP_DONE 19
+#define FID_CALLBACK_CAPTURE_INPUT 22
 
 typedef struct {
 	TFPMessageHeader header;
@@ -238,6 +242,27 @@ typedef struct {
 	bool value;
 } __attribute__((__packed__)) MonoflopDone_Callback;
 
+typedef struct {
+	TFPMessageHeader header;
+	bool enable;
+	uint16_t time_between_capture;
+} __attribute__((__packed__)) SetCaptureInputCallbackConfiguration;
+
+typedef struct {
+	TFPMessageHeader header;
+} __attribute__((__packed__)) GetCaptureInputCallbackConfiguration;
+
+typedef struct {
+	TFPMessageHeader header;
+	bool enable;
+	uint16_t time_between_capture;
+} __attribute__((__packed__)) GetCaptureInputCallbackConfiguration_Response;
+
+typedef struct {
+	TFPMessageHeader header;
+	uint8_t data[64];
+} __attribute__((__packed__)) CaptureInput_Callback;
+
 
 // Function prototypes
 BootloaderHandleMessageResponse set_value(const SetValue *data);
@@ -256,18 +281,22 @@ BootloaderHandleMessageResponse set_edge_count_configuration(const SetEdgeCountC
 BootloaderHandleMessageResponse get_edge_count_configuration(const GetEdgeCountConfiguration *data, GetEdgeCountConfiguration_Response *response);
 BootloaderHandleMessageResponse set_pwm_configuration(const SetPWMConfiguration *data);
 BootloaderHandleMessageResponse get_pwm_configuration(const GetPWMConfiguration *data, GetPWMConfiguration_Response *response);
+BootloaderHandleMessageResponse set_capture_input_callback_configuration(const SetCaptureInputCallbackConfiguration *data);
+BootloaderHandleMessageResponse get_capture_input_callback_configuration(const GetCaptureInputCallbackConfiguration *data, GetCaptureInputCallbackConfiguration_Response *response);
 
 // Callbacks
 bool handle_input_value_callback(void);
 bool handle_all_input_value_callback(void);
 bool handle_monoflop_done_callback(void);
+bool handle_capture_input_callback(void);
 
 #define COMMUNICATION_CALLBACK_TICK_WAIT_MS 1
-#define COMMUNICATION_CALLBACK_HANDLER_NUM 3
+#define COMMUNICATION_CALLBACK_HANDLER_NUM 4
 #define COMMUNICATION_CALLBACK_LIST_INIT \
 	handle_input_value_callback, \
 	handle_all_input_value_callback, \
 	handle_monoflop_done_callback, \
+	handle_capture_input_callback, \
 
 
 #endif
