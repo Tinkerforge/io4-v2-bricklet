@@ -13,3 +13,6 @@
 
 2019-05-29: 2.0.4 (de5c6da)
 - Fix SPITFP IRQ race condition with other higher prio IRQs (through bricklib2)
+
+2025-05-15: 2.0.5 (0e11702)
+- Add CaptureInput callback (can stream all 4 inputs with up to 50kHz sampling frequency)
