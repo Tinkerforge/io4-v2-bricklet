@@ -36,7 +36,7 @@ if __name__ == "__main__":
     time.sleep(0.02)
     io.set_capture_input_callback_configuration(False, 20)
 
-    print("Captures {} samples".format(len(data_channel[0])))
+    print("Captured {} samples".format(len(data_channel[0])))
 
     # Plot channel 0 and 1
     plt.figure(figsize=(10, 3))
